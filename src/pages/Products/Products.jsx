@@ -1,7 +1,15 @@
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Search, SlidersHorizontal, LoaderCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  useSearchParams,
+  useLocation,
+} from "react-router-dom";
+
+import {
+  Search,
+  SlidersHorizontal,
+  LoaderCircle,
+} from "lucide-react";
 
 import productService from "../../services/productService";
 import categoryService from "../../services/categoryService";
@@ -9,11 +17,33 @@ import ProductCard from "../../commponents/Products/ProductCard";
 
 const LIMIT = 12;
 
+// Supports Axios responses and service responses.
+const getResponseData = (response) => {
+  return response?.data?.data ?? response?.data ?? response ?? [];
+};
+
+const getArray = (response) => {
+  const data = getResponseData(response);
+  return Array.isArray(data) ? data : [];
+};
+
+const getPageNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+};
+
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+
+  const applyingUrlRef = useRef(false);
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+
+  const [searchInput, setSearchInput] = useState(
+    searchParams.get("search") || ""
+  );
 
   const [search, setSearch] = useState(
     searchParams.get("search") || ""
@@ -28,28 +58,150 @@ const Products = () => {
   );
 
   const [page, setPage] = useState(
-    Math.max(1, Number(searchParams.get("page")) || 1)
+    getPageNumber(searchParams.get("page"))
   );
 
+  const [totalProducts, setTotalProducts] = useState(0);
+
   const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [error, setError] = useState("");
   const [hasMore, setHasMore] = useState(false);
 
-  // Load categories
+  // ==========================================
+  // SYNC FILTERS FROM URL
+  // Supports browser Back and Forward navigation.
+  // ==========================================
+
   useEffect(() => {
+    applyingUrlRef.current = true;
+
+    const params = new URLSearchParams(location.search);
+
+    const urlSearch = params.get("search") || "";
+    const urlCategoryId = params.get("categoryId") || "";
+    const urlSortBy = params.get("sortBy") || "newest";
+    const urlPage = getPageNumber(params.get("page"));
+
+    setSearchInput(urlSearch);
+    setSearch(urlSearch);
+    setCategoryId(urlCategoryId);
+    setSortBy(urlSortBy);
+    setPage(urlPage);
+  }, [location.search]);
+
+  // ==========================================
+  // SYNC FILTERS TO URL
+  // ==========================================
+
+  useEffect(() => {
+    // Do not overwrite a URL change coming from Back/Forward.
+    if (applyingUrlRef.current) {
+      applyingUrlRef.current = false;
+      return;
+    }
+
+    const nextParams = new URLSearchParams();
+
+    if (search.trim()) {
+      nextParams.set("search", search.trim());
+    }
+
+    if (categoryId) {
+      nextParams.set("categoryId", categoryId);
+    }
+
+    if (sortBy !== "newest") {
+      nextParams.set("sortBy", sortBy);
+    }
+
+    if (page > 1) {
+      nextParams.set("page", String(page));
+    }
+
+    if (nextParams.toString() !== location.search.replace(/^\?/, "")) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [
+    search,
+    categoryId,
+    sortBy,
+    page,
+    location.search,
+    setSearchParams,
+  ]);
+
+  // ==========================================
+  // DEBOUNCE SEARCH INPUT
+  // ==========================================
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      const trimmedSearch = searchInput.trim();
+
+      setSearch((current) =>
+        current === trimmedSearch ? current : trimmedSearch
+      );
+
+      setPage(1);
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
+  // ==========================================
+  // LOAD PRODUCT CATEGORIES
+  // ==========================================
+
+  useEffect(() => {
+    let cancelled = false;
+
     const loadCategories = async () => {
       try {
+        setCategoriesLoading(true);
+
         const response = await categoryService.getCategories();
-        setCategories(response.data || []);
+        const shopCategories = getArray(response);
+
+        const productCategories = shopCategories.flatMap(
+          (shopCategory) =>
+            (shopCategory.shops || []).flatMap((shop) =>
+              (shop.productCategories || []).map(
+                (productCategory) => ({
+                  ...productCategory,
+                  shopName: shop.name,
+                  shopCategoryName: shopCategory.name,
+                })
+              )
+            )
+        );
+
+        if (!cancelled) {
+          setCategories(productCategories);
+        }
       } catch (err) {
-        console.error("Failed to load categories:", err);
+        console.error(
+          "Failed to load product categories:",
+          err
+        );
+      } finally {
+        if (!cancelled) {
+          setCategoriesLoading(false);
+        }
       }
     };
 
     loadCategories();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Load products whenever filters or page changes
+  // ==========================================
+  // LOAD PRODUCTS
+  // ==========================================
+
   useEffect(() => {
     let cancelled = false;
 
@@ -68,6 +220,7 @@ const Products = () => {
           params.search = search.trim();
         }
 
+        // This is a ProductCategory ID, not a ShopCategory ID.
         if (categoryId) {
           params.categoryId = categoryId;
         }
@@ -76,19 +229,32 @@ const Products = () => {
 
         if (cancelled) return;
 
-        const result = response.data || [];
+        const result = getResponseData(response);
 
-        setProducts(result);
-        setHasMore(result.length === LIMIT);
+        // Supports both the new paginated response and
+        // the previous array response.
+        const productList = Array.isArray(result)
+          ? result
+          : Array.isArray(result?.products)
+            ? result.products
+            : [];
 
-        setSearchParams(
-          {
-            ...(search.trim() && { search: search.trim() }),
-            ...(categoryId && { categoryId }),
-            ...(sortBy !== "newest" && { sortBy }),
-            ...(page > 1 && { page: String(page) }),
-          },
-          { replace: true }
+        const pagination = Array.isArray(result)
+          ? null
+          : result?.pagination;
+
+        setProducts(productList);
+
+        setTotalProducts(
+          Number.isFinite(Number(pagination?.total))
+            ? Number(pagination.total)
+            : productList.length
+        );
+
+        setHasMore(
+          typeof pagination?.hasNextPage === "boolean"
+            ? pagination.hasNextPage
+            : productList.length === LIMIT
         );
       } catch (err) {
         if (cancelled) return;
@@ -101,6 +267,8 @@ const Products = () => {
         );
 
         setProducts([]);
+        setTotalProducts(0);
+        setHasMore(false);
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -113,10 +281,23 @@ const Products = () => {
     return () => {
       cancelled = true;
     };
-  }, [search, categoryId, sortBy, page, setSearchParams]);
+  }, [search, categoryId, sortBy, page]);
+
+  // ==========================================
+  // FILTER HANDLERS
+  // ==========================================
 
   const handleSearch = (event) => {
     event.preventDefault();
+
+    const trimmedSearch = searchInput.trim();
+
+    setSearch(trimmedSearch);
+    setPage(1);
+  };
+
+  const handleSearchInputChange = (event) => {
+    setSearchInput(event.target.value);
     setPage(1);
   };
 
@@ -131,37 +312,77 @@ const Products = () => {
   };
 
   const clearFilters = () => {
+    setSearchInput("");
     setSearch("");
     setCategoryId("");
     setSortBy("newest");
     setPage(1);
   };
 
+  // ==========================================
+  // PAGINATION HANDLERS
+  // ==========================================
+
+  const handlePreviousPage = () => {
+    if (page <= 1 || loading) return;
+
+    setPage((current) => Math.max(1, current - 1));
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  const handleNextPage = () => {
+    if (!hasMore || loading) return;
+
+    setPage((current) => current + 1);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  // ==========================================
+  // RENDER
+  // ==========================================
+
   return (
-    <main className="bg-gray-50 min-h-screen">
+    <main className="min-h-screen bg-gray-50">
+
       {/* PAGE HEADER */}
       <section className="bg-gradient-to-r from-blue-900 to-blue-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 py-14">
-          <p className="text-orange-300 text-sm font-bold uppercase tracking-widest">
+        <div className="mx-auto max-w-7xl px-4 py-14">
+
+          <p className="text-sm font-bold uppercase tracking-widest text-orange-300">
             ShopEase Collection
           </p>
 
-          <h1 className="text-3xl md:text-5xl font-extrabold mt-3">
+          <h1 className="mt-3 text-3xl font-extrabold md:text-5xl">
             Explore Our Products
           </h1>
 
-          <p className="text-blue-100 mt-4 max-w-xl">
-            Discover quality products, great prices and exciting offers.
-            Find exactly what you need.
+          <p className="mt-4 max-w-xl text-blue-100">
+            Discover quality products, great prices and exciting
+            offers. Find exactly what you need.
           </p>
+
         </div>
       </section>
 
-      <div className="max-w-7xl mx-auto px-4 py-10">
+      <div className="mx-auto max-w-7xl px-4 py-10">
+
         {/* FILTERS */}
-        <div className="bg-white border border-gray-100 rounded-xl p-5 mb-8">
-          <div className="flex items-center gap-2 mb-5">
-            <SlidersHorizontal size={19} className="text-blue-700" />
+        <div className="mb-8 rounded-xl border border-gray-100 bg-white p-5">
+
+          <div className="mb-5 flex items-center gap-2">
+            <SlidersHorizontal
+              size={19}
+              className="text-blue-700"
+            />
+
             <h2 className="font-bold text-gray-800">
               Search and Filter Products
             </h2>
@@ -169,10 +390,11 @@ const Products = () => {
 
           <form
             onSubmit={handleSearch}
-            className="grid grid-cols-1 md:grid-cols-4 gap-4"
+            className="grid grid-cols-1 gap-4 md:grid-cols-4"
           >
+
             {/* SEARCH */}
-            <div className="md:col-span-2 relative">
+            <div className="relative md:col-span-2">
               <Search
                 size={19}
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
@@ -180,24 +402,32 @@ const Products = () => {
 
               <input
                 type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                value={searchInput}
+                onChange={handleSearchInputChange}
                 placeholder="Search products..."
-                className="w-full border border-gray-200 rounded-lg pl-11 pr-4 py-3 outline-none focus:border-blue-700"
+                className="w-full rounded-lg border border-gray-200 py-3 pl-11 pr-4 outline-none focus:border-blue-700"
               />
             </div>
 
-            {/* CATEGORY */}
+            {/* PRODUCT CATEGORY */}
             <select
               value={categoryId}
               onChange={handleCategoryChange}
-              className="w-full border border-gray-200 rounded-lg px-4 py-3 outline-none focus:border-blue-700 bg-white"
+              disabled={categoriesLoading}
+              className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 outline-none focus:border-blue-700 disabled:cursor-wait disabled:bg-gray-100"
             >
-              <option value="">All Categories</option>
+              <option value="">
+                {categoriesLoading
+                  ? "Loading categories..."
+                  : "All Product Categories"}
+              </option>
 
               {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
+                <option
+                  key={`${category.id}-${category.shopName}`}
+                  value={category.id}
+                >
+                  {category.name} — {category.shopName}
                 </option>
               ))}
             </select>
@@ -206,38 +436,45 @@ const Products = () => {
             <select
               value={sortBy}
               onChange={handleSortChange}
-              className="w-full border border-gray-200 rounded-lg px-4 py-3 outline-none focus:border-blue-700 bg-white"
+              className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 outline-none focus:border-blue-700"
             >
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
-              <option value="price_asc">Price: Low to High</option>
-              <option value="price_desc">Price: High to Low</option>
+              <option value="price_asc">
+                Price: Low to High
+              </option>
+              <option value="price_desc">
+                Price: High to Low
+              </option>
               <option value="name_asc">Name: A to Z</option>
               <option value="name_desc">Name: Z to A</option>
             </select>
 
-            <div className="md:col-span-4 flex justify-end">
+            {/* CLEAR FILTERS */}
+            <div className="flex justify-end md:col-span-4">
               <button
                 type="button"
                 onClick={clearFilters}
-                className="text-sm text-red-500 hover:text-red-700 font-semibold"
+                className="text-sm font-semibold text-red-500 hover:text-red-700"
               >
                 Clear Filters
               </button>
             </div>
+
           </form>
         </div>
 
-        {/* PRODUCT RESULTS */}
-        <div className="flex justify-between items-center mb-6">
+        {/* PRODUCT RESULTS HEADER */}
+        <div className="mb-6 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-gray-900">
               All Products
             </h2>
-            <p className="text-sm text-gray-500 mt-1">
+
+            <p className="mt-1 text-sm text-gray-500">
               {loading
                 ? "Loading products..."
-                : `${products.length} products on this page`}
+                : `${totalProducts} products found`}
             </p>
           </div>
 
@@ -248,7 +485,7 @@ const Products = () => {
 
         {/* ERROR */}
         {error && (
-          <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-lg mb-6">
+          <div className="mb-6 rounded-lg border border-red-100 bg-red-50 p-4 text-red-600">
             {error}
           </div>
         )}
@@ -260,35 +497,41 @@ const Products = () => {
               size={40}
               className="animate-spin text-blue-700"
             />
-            <p className="text-gray-500 mt-4">
+
+            <p className="mt-4 text-gray-500">
               Loading products...
             </p>
           </div>
         ) : products.length === 0 ? (
-          <div className="bg-white rounded-xl p-12 text-center">
+
+          /* EMPTY STATE */
+          <div className="rounded-xl bg-white p-12 text-center">
             <Search
               size={45}
               className="mx-auto text-gray-300"
             />
 
-            <h3 className="text-xl font-bold mt-5">
+            <h3 className="mt-5 text-xl font-bold">
               No Products Found
             </h3>
 
-            <p className="text-gray-500 mt-2">
+            <p className="mt-2 text-gray-500">
               Try another search term or change your filters.
             </p>
 
             <button
+              type="button"
               onClick={clearFilters}
-              className="mt-6 bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-800"
+              className="mt-6 rounded-lg bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800"
             >
               Clear Filters
             </button>
           </div>
+
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
+            {/* PRODUCT GRID */}
+            <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
               {products.map((product) => (
                 <ProductCard
                   key={product.id}
@@ -298,14 +541,12 @@ const Products = () => {
             </div>
 
             {/* PAGINATION */}
-            <div className="flex justify-center items-center gap-4 mt-12">
+            <div className="mt-12 flex items-center justify-center gap-4">
               <button
-                disabled={page === 1}
-                onClick={() => {
-                  setPage((current) => current - 1);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-                className="px-5 py-3 rounded-lg border border-gray-200 bg-white text-gray-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:border-blue-700"
+                type="button"
+                disabled={page === 1 || loading}
+                onClick={handlePreviousPage}
+                className="rounded-lg border border-gray-200 bg-white px-5 py-3 font-semibold text-gray-700 hover:border-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Previous
               </button>
@@ -315,18 +556,17 @@ const Products = () => {
               </span>
 
               <button
-                disabled={!hasMore}
-                onClick={() => {
-                  setPage((current) => current + 1);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-                className="px-5 py-3 rounded-lg bg-blue-700 text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-800"
+                type="button"
+                disabled={!hasMore || loading}
+                onClick={handleNextPage}
+                className="rounded-lg bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Next
               </button>
             </div>
           </>
         )}
+
       </div>
     </main>
   );

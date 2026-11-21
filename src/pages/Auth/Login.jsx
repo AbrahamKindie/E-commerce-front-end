@@ -4,10 +4,11 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
-import cartService from "../../services/cartService";
+import { useCart } from "../../context/cartContext";
 
 const Login = () => {
   const { login, loading } = useAuth();
+  const { addToCart } = useCart();
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -22,11 +23,49 @@ const Login = () => {
   const [addingToCart, setAddingToCart] = useState(false);
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
+    setFormData((previous) => ({
+      ...previous,
       [e.target.name]: e.target.value,
-    });
+    }));
   };
+
+  // ==========================================
+  // ROLE-BASED DEFAULT REDIRECT
+  // ==========================================
+
+  const getUserRedirectPath = (loggedInUser) => {
+    if (loggedInUser?.role === "SHOP_OWNER") {
+      switch (loggedInUser.shop?.status) {
+        case "PENDING":
+          return "/shop/pending-approval";
+
+        case "REJECTED":
+          return "/shop/rejected";
+
+        case "SUSPENDED":
+          return "/shop/suspended";
+
+        case "APPROVED":
+          return "/shop/dashboard";
+
+        default:
+          return "/";
+      }
+    }
+
+    if (
+      loggedInUser?.role === "ADMIN" ||
+      loggedInUser?.role === "SUPER_ADMIN"
+    ) {
+      return "/admin";
+    }
+
+    return "/";
+  };
+
+  // ==========================================
+  // LOGIN
+  // ==========================================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,17 +74,41 @@ const Login = () => {
       setError("");
 
       const response = await login(formData);
+      const loggedInUser = response?.user;
 
+      if (!loggedInUser) {
+        setError(
+          "Login succeeded, but user information was not returned. Please sign in again."
+        );
+        return;
+      }
+
+      const defaultDestination =
+        getUserRedirectPath(loggedInUser);
+
+      // Shop Owners follow their shop approval status.
+      if (loggedInUser.role === "SHOP_OWNER") {
+        navigate(defaultDestination, { replace: true });
+        return;
+      }
+
+      // Add pending product to cart after successful login.
       const pendingAddToCart =
         location.state?.pendingAddToCart;
 
-      if (pendingAddToCart) {
+      const canShop = [
+        "USER",
+        "ADMIN",
+        "SUPER_ADMIN",
+      ].includes(loggedInUser.role);
+
+      if (pendingAddToCart && canShop) {
         try {
           setAddingToCart(true);
 
-          await cartService.addToCart(
+          await addToCart(
             pendingAddToCart.productId,
-            pendingAddToCart.quantity
+            pendingAddToCart.quantity || 1
           );
 
           navigate("/cart", { replace: true });
@@ -53,21 +116,24 @@ const Login = () => {
         } catch (cartErr) {
           setError(
             cartErr.response?.data?.message ||
-              "Login successful, but we could not add the product to your cart. Please try again."
+              "Login successful, but we could not add the product to your cart."
           );
-
           return;
         } finally {
           setAddingToCart(false);
         }
       }
 
+      // Return to originally requested page when available.
       const destination = location.state?.from;
 
-      const target =
-        typeof destination === "string"
-          ? destination
-          : destination?.pathname || "/";
+      const target = destination?.pathname
+        ? {
+            pathname: destination.pathname,
+            search: destination.search || "",
+            hash: destination.hash || "",
+          }
+        : defaultDestination;
 
       navigate(target, { replace: true });
     } catch (err) {
@@ -104,7 +170,6 @@ const Login = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Email */}
           <div>
             <label
               htmlFor="email"
@@ -130,7 +195,6 @@ const Login = () => {
             </div>
           </div>
 
-          {/* Password */}
           <div>
             <div className="mb-2 flex justify-between">
               <label
@@ -165,9 +229,13 @@ const Login = () => {
 
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
+                onClick={() =>
+                  setShowPassword((previous) => !previous)
+                }
                 className="text-gray-400 hover:text-gray-700"
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={
+                  showPassword ? "Hide password" : "Show password"
+                }
               >
                 {showPassword ? (
                   <EyeOff size={18} />
@@ -178,7 +246,6 @@ const Login = () => {
             </div>
           </div>
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={isSubmitting}

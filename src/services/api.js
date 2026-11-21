@@ -1,9 +1,18 @@
 
 import axios from "axios";
 
-const API_BASE_URL = (
+// ==========================================
+// API CONFIGURATION
+// ==========================================
+
+export const API_BASE_URL = (
   import.meta.env.VITE_API_URL || "http://localhost:3000"
 ).replace(/\/+$/, "");
+
+export const BACKEND_URL = new URL(
+  API_BASE_URL,
+  window.location.origin
+).origin;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -12,9 +21,15 @@ const api = axios.create({
   },
 });
 
-// A separate Axios request prevents the refresh call from
-// passing through this instance's response interceptor.
+// ==========================================
+// TOKEN REFRESH MANAGEMENT
+// ==========================================
+
 let refreshPromise = null;
+
+// ==========================================
+// CLEAR AUTHENTICATION SESSION
+// ==========================================
 
 const clearSession = () => {
   localStorage.removeItem("accessToken");
@@ -24,7 +39,10 @@ const clearSession = () => {
   window.dispatchEvent(new Event("auth:session-expired"));
 };
 
-// Attach the current access token to every request.
+// ==========================================
+// REQUEST INTERCEPTOR
+// ==========================================
+
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("accessToken");
@@ -34,12 +52,25 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    // Let Axios set the multipart Content-Type boundary.
+    if (config.data instanceof FormData) {
+      if (typeof config.headers?.delete === "function") {
+        config.headers.delete("Content-Type");
+      } else if (config.headers) {
+        delete config.headers["Content-Type"];
+        delete config.headers["content-type"];
+      }
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Handle expired access tokens.
+// ==========================================
+// RESPONSE INTERCEPTOR
+// ==========================================
+
 api.interceptors.response.use(
   (response) => response,
 
@@ -50,7 +81,6 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Never refresh these authentication requests.
     const excludedUrls = [
       "/auth/login",
       "/auth/register",
@@ -78,7 +108,6 @@ api.interceptors.response.use(
     }
 
     try {
-      // Reuse an existing refresh request if one is already running.
       if (!refreshPromise) {
         refreshPromise = axios
           .post(`${API_BASE_URL}/auth/refresh-token`, {
@@ -86,12 +115,16 @@ api.interceptors.response.use(
           })
           .then((response) => {
             const newAccessToken = response.data.accessToken;
+            const newRefreshToken = response.data.refreshToken;
 
-            if (!newAccessToken) {
-              throw new Error("No access token returned by server");
+            if (!newAccessToken || !newRefreshToken) {
+              throw new Error(
+                "Invalid token response from server."
+              );
             }
 
             localStorage.setItem("accessToken", newAccessToken);
+            localStorage.setItem("refreshToken", newRefreshToken);
 
             return newAccessToken;
           })
@@ -102,7 +135,6 @@ api.interceptors.response.use(
 
       const newAccessToken = await refreshPromise;
 
-      // Retry the original request with the new access token.
       originalRequest.headers = originalRequest.headers || {};
       originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
 
@@ -113,5 +145,9 @@ api.interceptors.response.use(
     }
   }
 );
+
+// ==========================================
+// EXPORT
+// ==========================================
 
 export default api;
