@@ -9,7 +9,6 @@ import {
   Store,
   ShoppingBag,
   Package,
-  ChevronRight,
   Filter,
   X,
 } from "lucide-react";
@@ -50,18 +49,9 @@ const getArray = (response) => {
 // IMAGE HELPERS
 // ==========================================
 
-// Supports:
-// - Full image URLs
-// - Relative paths: uploads/categories/image.jpg
-// - Paths beginning with /
-// - Windows-style paths
-// - Data and blob URLs
-// - Different image field names
-
 const getImageUrl = (image) => {
   if (!image) return FALLBACK_IMAGE;
 
-  // Some APIs may return an image object instead of a string.
   if (typeof image === "object") {
     image =
       image.url ||
@@ -79,10 +69,7 @@ const getImageUrl = (image) => {
 
   if (!imagePath) return FALLBACK_IMAGE;
 
-  // Already a complete URL or browser-supported image source.
-  if (
-    /^(https?:\/\/|data:image\/|blob:)/i.test(imagePath)
-  ) {
+  if (/^(https?:\/\/|data:image\/|blob:)/i.test(imagePath)) {
     return imagePath;
   }
 
@@ -100,7 +87,6 @@ const getImageUrl = (image) => {
   }
 };
 
-// Get the first available image field.
 const getCategoryImage = (category) => {
   return (
     category?.image ||
@@ -117,7 +103,7 @@ const handleImageError = (event) => {
 };
 
 // ==========================================
-// DATA HELPERS
+// ACTIVE SHOPS
 // ==========================================
 
 const getActiveShops = (category) => {
@@ -132,7 +118,6 @@ const getActiveShops = (category) => {
       return shop.isActive === true;
     }
 
-    // The backend may already return active shops only.
     return true;
   });
 };
@@ -170,19 +155,15 @@ const getUniqueProductCategories = (category) => {
 };
 
 // ==========================================
-// PRODUCT COUNT HELPERS
+// PRODUCT COUNTS
 // ==========================================
 
 const getProductCategoryProductCount = (productCategory) => {
-  if (
-    typeof productCategory?.productsCount === "number"
-  ) {
+  if (typeof productCategory?.productsCount === "number") {
     return productCategory.productsCount;
   }
 
-  if (
-    typeof productCategory?._count?.products === "number"
-  ) {
+  if (typeof productCategory?._count?.products === "number") {
     return productCategory._count.products;
   }
 
@@ -198,7 +179,6 @@ const getProductCategoryProductCount = (productCategory) => {
 };
 
 const getCategoryProductCount = (category) => {
-  // Prefer the total already calculated by the backend.
   if (typeof category?.productsCount === "number") {
     return category.productsCount;
   }
@@ -310,13 +290,12 @@ const ShopCategoryCard = ({ category }) => {
       : getUniqueProductCategories(category).length;
 
   const totalProducts = getCategoryProductCount(category);
-
   const image = getCategoryImage(category);
 
   return (
     <Link
       to={`/categories/${category.id}`}
-      className="group overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"
+      className="group block w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"
     >
       <div className="relative h-52 overflow-hidden bg-gradient-to-br from-blue-50 to-orange-50">
         <img
@@ -404,96 +383,88 @@ const ProductCategoryCard = ({
     productCategory.image ||
     productCategory.imageUrl ||
     productCategory.coverImage ||
+    productCategory.photo ||
+    productCategory.thumbnail ||
+    productCategory.products?.find(
+      (product) =>
+        Array.isArray(product.images) &&
+        product.images.length > 0
+    )?.images?.[0] ||
     null;
+
+  const productCount =
+    getProductCategoryProductCount(productCategory);
 
   return (
     <Link
       to={productCategoryUrl}
-      className="group flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-4 transition duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg"
+      className="group block w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"
     >
-      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-blue-50 to-orange-50">
+      {/* PRODUCT CATEGORY IMAGE */}
+
+      <div className="relative h-52 overflow-hidden bg-gradient-to-br from-blue-50 to-orange-50">
         <img
           src={getImageUrl(image)}
           alt={productCategory.name || "Product category"}
           loading="lazy"
           onError={handleImageError}
-          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
         />
-      </div>
 
-      <div className="min-w-0 flex-1">
-        <h3 className="truncate text-base font-bold text-gray-900 transition group-hover:text-blue-700">
+        {/* IMAGE OVERLAY */}
+
+        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-black/35" />
+
+        {/* SHOP NAME BADGE */}
+
+        <div className="absolute left-4 top-4 max-w-[85%]">
+          <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/30 bg-orange-500 px-3 py-2 text-xs font-bold text-white shadow-lg">
+            <Store size={14} className="shrink-0" />
+
+            <span className="truncate">
+              {shop.name}
+            </span>
+          </span>
+        </div>
+
+        {/* PRODUCT CATEGORY NAME */}
+
+        <h3 className="absolute bottom-4 left-5 right-5 line-clamp-2 text-2xl font-extrabold text-white drop-shadow">
           {productCategory.name}
         </h3>
+      </div>
 
-        <p className="mt-1 truncate text-xs text-gray-500">
-          {shop.name}
-        </p>
+      {/* PRODUCT COUNT */}
 
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-            <Store size={12} />
-            {shopCategory.name}
+      <div className="p-5">
+        <div className="rounded-xl bg-blue-50 p-3">
+          <div className="flex items-center gap-2 text-blue-700">
+            <Package size={17} />
+
+            <span className="text-xs font-medium">
+              Products
+            </span>
+          </div>
+
+          <p className="mt-2 text-xl font-extrabold text-gray-900">
+            {productCount === null ? "—" : productCount}
+          </p>
+        </div>
+
+        {/* EXPLORE */}
+
+        <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
+          <span className="text-xs text-gray-500">
+            Explore this category
+          </span>
+
+          <span className="flex items-center gap-1 text-sm font-bold text-blue-700 transition group-hover:text-orange-500">
+            Explore
+            <ArrowRight size={16} />
           </span>
         </div>
       </div>
-
-      <span className="shrink-0 rounded-full bg-gray-50 p-2 text-gray-400 transition group-hover:bg-blue-600 group-hover:text-white">
-        <ChevronRight size={19} />
-      </span>
     </Link>
-  );
-};
-
-// ==========================================
-// PRODUCT CATEGORY GROUP
-// ==========================================
-
-const ProductCategoryGroup = ({
-  category,
-  shop,
-  productCategories,
-}) => {
-  if (!productCategories.length) return null;
-
-  return (
-    <div className="mb-8">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-            <Store size={19} />
-          </div>
-
-          <div>
-            <h3 className="font-bold text-gray-900">
-              {shop.name}
-            </h3>
-
-            <p className="text-xs text-gray-500">
-              {category.name}
-            </p>
-          </div>
-        </div>
-
-        <span className="text-xs font-medium text-gray-400">
-          {productCategories.length}{" "}
-          {productCategories.length === 1
-            ? "Category"
-            : "Categories"}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {productCategories.map((productCategory) => (
-          <ProductCategoryCard
-            key={`${shop.id}-${productCategory.id}`}
-            productCategory={productCategory}
-            shop={shop}
-            shopCategory={category}
-          />
-        ))}
-      </div>
-    </div>
   );
 };
 
@@ -503,7 +474,6 @@ const ProductCategoryGroup = ({
 
 const Categories = () => {
   const [categories, setCategories] = useState([]);
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -554,9 +524,6 @@ const Categories = () => {
   // ==========================================
   // ALL SHOP CATEGORIES
   // ==========================================
-
-  // Hide the category named "Other".
-  // Keep every other category, even without active shops.
 
   const allShopCategories = useMemo(() => {
     return categories
@@ -662,6 +629,7 @@ const Categories = () => {
 
   return (
     <main className="min-h-screen bg-gray-50">
+
       {/* PAGE HEADER */}
 
       <section className="bg-gradient-to-br from-blue-50 via-white to-orange-50">
@@ -684,6 +652,7 @@ const Categories = () => {
       </section>
 
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+
         {/* ERROR STATE */}
 
         {error && (
@@ -821,13 +790,13 @@ const Categories = () => {
                   )}
                 </div>
               ) : (
-                <div>
+                <div className="grid grid-cols-1 items-start gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {productCategoryGroups.map((group) => (
-                    <ProductCategoryGroup
+                    <ProductCategoryCard
                       key={`${group.category.id}-${group.shop.id}-${group.productCategory.id}`}
-                      category={group.category}
+                      productCategory={group.productCategory}
                       shop={group.shop}
-                      productCategories={[group.productCategory]}
+                      shopCategory={group.category}
                     />
                   ))}
                 </div>

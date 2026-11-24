@@ -9,6 +9,7 @@ import {
   Search,
   SlidersHorizontal,
   LoaderCircle,
+  Store,
 } from "lucide-react";
 
 import productService from "../../services/productService";
@@ -17,7 +18,6 @@ import ProductCard from "../../commponents/Products/ProductCard";
 
 const LIMIT = 12;
 
-// Supports Axios responses and service responses.
 const getResponseData = (response) => {
   return response?.data?.data ?? response?.data ?? response ?? [];
 };
@@ -30,6 +30,16 @@ const getArray = (response) => {
 const getPageNumber = (value) => {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+};
+
+// Get shop name from supported API response shapes.
+const getShopName = (product) => {
+  return (
+    product?.shop?.name ||
+    product?.shopName ||
+    product?.shop?.shopName ||
+    ""
+  );
 };
 
 const Products = () => {
@@ -70,7 +80,6 @@ const Products = () => {
 
   // ==========================================
   // SYNC FILTERS FROM URL
-  // Supports browser Back and Forward navigation.
   // ==========================================
 
   useEffect(() => {
@@ -95,7 +104,6 @@ const Products = () => {
   // ==========================================
 
   useEffect(() => {
-    // Do not overwrite a URL change coming from Back/Forward.
     if (applyingUrlRef.current) {
       applyingUrlRef.current = false;
       return;
@@ -119,7 +127,10 @@ const Products = () => {
       nextParams.set("page", String(page));
     }
 
-    if (nextParams.toString() !== location.search.replace(/^\?/, "")) {
+    if (
+      nextParams.toString() !==
+      location.search.replace(/^\?/, "")
+    ) {
       setSearchParams(nextParams, { replace: true });
     }
   }, [
@@ -132,7 +143,7 @@ const Products = () => {
   ]);
 
   // ==========================================
-  // DEBOUNCE SEARCH INPUT
+  // DEBOUNCE SEARCH
   // ==========================================
 
   useEffect(() => {
@@ -163,21 +174,55 @@ const Products = () => {
         const response = await categoryService.getCategories();
         const shopCategories = getArray(response);
 
-        const productCategories = shopCategories.flatMap(
-          (shopCategory) =>
-            (shopCategory.shops || []).flatMap((shop) =>
-              (shop.productCategories || []).map(
-                (productCategory) => ({
-                  ...productCategory,
-                  shopName: shop.name,
-                  shopCategoryName: shopCategory.name,
-                })
-              )
+        const categoryMap = new Map();
+
+        shopCategories.forEach((shopCategory) => {
+          const shops = Array.isArray(shopCategory?.shops)
+            ? shopCategory.shops
+            : [];
+
+          shops.forEach((shop) => {
+            if (
+              shop?.status &&
+              shop.status !== "ACTIVE"
+            ) {
+              return;
+            }
+
+            const productCategories = Array.isArray(
+              shop.productCategories
             )
+              ? shop.productCategories
+              : [];
+
+            productCategories.forEach((productCategory) => {
+              if (
+                !productCategory?.id ||
+                !productCategory?.name
+              ) {
+                return;
+              }
+
+              // Display only the product category name.
+              // Do not include shop or shop-category names.
+              const key = String(productCategory.id);
+
+              if (!categoryMap.has(key)) {
+                categoryMap.set(key, {
+                  id: productCategory.id,
+                  name: String(productCategory.name).trim(),
+                });
+              }
+            });
+          });
+        });
+
+        const result = Array.from(categoryMap.values()).sort(
+          (a, b) => a.name.localeCompare(b.name)
         );
 
         if (!cancelled) {
-          setCategories(productCategories);
+          setCategories(result);
         }
       } catch (err) {
         console.error(
@@ -217,10 +262,11 @@ const Products = () => {
         };
 
         if (search.trim()) {
+          // Backend should search product name,
+          // description, product category name and shop name.
           params.search = search.trim();
         }
 
-        // This is a ProductCategory ID, not a ShopCategory ID.
         if (categoryId) {
           params.categoryId = categoryId;
         }
@@ -231,8 +277,6 @@ const Products = () => {
 
         const result = getResponseData(response);
 
-        // Supports both the new paginated response and
-        // the previous array response.
         const productList = Array.isArray(result)
           ? result
           : Array.isArray(result?.products)
@@ -290,9 +334,7 @@ const Products = () => {
   const handleSearch = (event) => {
     event.preventDefault();
 
-    const trimmedSearch = searchInput.trim();
-
-    setSearch(trimmedSearch);
+    setSearch(searchInput.trim());
     setPage(1);
   };
 
@@ -320,7 +362,7 @@ const Products = () => {
   };
 
   // ==========================================
-  // PAGINATION HANDLERS
+  // PAGINATION
   // ==========================================
 
   const handlePreviousPage = () => {
@@ -353,6 +395,7 @@ const Products = () => {
     <main className="min-h-screen bg-gray-50">
 
       {/* PAGE HEADER */}
+
       <section className="bg-gradient-to-r from-blue-900 to-blue-700 text-white">
         <div className="mx-auto max-w-7xl px-4 py-14">
 
@@ -374,7 +417,8 @@ const Products = () => {
 
       <div className="mx-auto max-w-7xl px-4 py-10">
 
-        {/* FILTERS */}
+        {/* SEARCH AND FILTERS */}
+
         <div className="mb-8 rounded-xl border border-gray-100 bg-white p-5">
 
           <div className="mb-5 flex items-center gap-2">
@@ -393,7 +437,8 @@ const Products = () => {
             className="grid grid-cols-1 gap-4 md:grid-cols-4"
           >
 
-            {/* SEARCH */}
+            {/* SEARCH PRODUCT, CATEGORY OR SHOP */}
+
             <div className="relative md:col-span-2">
               <Search
                 size={19}
@@ -404,12 +449,13 @@ const Products = () => {
                 type="search"
                 value={searchInput}
                 onChange={handleSearchInputChange}
-                placeholder="Search products..."
-                className="w-full rounded-lg border border-gray-200 py-3 pl-11 pr-4 outline-none focus:border-blue-700"
+                placeholder="Search by product, category or shop name..."
+                className="w-full rounded-lg border border-gray-200 py-3 pl-11 pr-4 outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
               />
             </div>
 
-            {/* PRODUCT CATEGORY */}
+            {/* PRODUCT CATEGORY FILTER */}
+
             <select
               value={categoryId}
               onChange={handleCategoryChange}
@@ -424,15 +470,16 @@ const Products = () => {
 
               {categories.map((category) => (
                 <option
-                  key={`${category.id}-${category.shopName}`}
+                  key={category.id}
                   value={category.id}
                 >
-                  {category.name} — {category.shopName}
+                  {category.name}
                 </option>
               ))}
             </select>
 
-            {/* SORT */}
+            {/* SORT OPTIONS */}
+
             <select
               value={sortBy}
               onChange={handleSortChange}
@@ -440,17 +487,14 @@ const Products = () => {
             >
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
-              <option value="price_asc">
-                Price: Low to High
-              </option>
-              <option value="price_desc">
-                Price: High to Low
-              </option>
+              <option value="price_asc">Price: Low to High</option>
+              <option value="price_desc">Price: High to Low</option>
               <option value="name_asc">Name: A to Z</option>
               <option value="name_desc">Name: Z to A</option>
             </select>
 
             {/* CLEAR FILTERS */}
+
             <div className="flex justify-end md:col-span-4">
               <button
                 type="button"
@@ -465,6 +509,7 @@ const Products = () => {
         </div>
 
         {/* PRODUCT RESULTS HEADER */}
+
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-gray-900">
@@ -484,6 +529,7 @@ const Products = () => {
         </div>
 
         {/* ERROR */}
+
         {error && (
           <div className="mb-6 rounded-lg border border-red-100 bg-red-50 p-4 text-red-600">
             {error}
@@ -491,6 +537,7 @@ const Products = () => {
         )}
 
         {/* LOADING */}
+
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24">
             <LoaderCircle
@@ -505,6 +552,7 @@ const Products = () => {
         ) : products.length === 0 ? (
 
           /* EMPTY STATE */
+
           <div className="rounded-xl bg-white p-12 text-center">
             <Search
               size={45}
@@ -531,16 +579,41 @@ const Products = () => {
         ) : (
           <>
             {/* PRODUCT GRID */}
+
             <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
-              {products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                />
-              ))}
+              {products.map((product) => {
+                const shopName = getShopName(product);
+
+                return (
+                  <div
+                    key={product.id}
+                    className="relative min-w-0"
+                  >
+                    {/* COLORED SHOP NAME */}
+
+                    {shopName && (
+                      <div className="absolute left-3 top-3 z-20 max-w-[75%]">
+                        <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-md">
+                          <Store
+                            size={13}
+                            className="shrink-0"
+                          />
+
+                          <span className="truncate">
+                            {shopName}
+                          </span>
+                        </span>
+                      </div>
+                    )}
+
+                    <ProductCard product={product} />
+                  </div>
+                );
+              })}
             </div>
 
             {/* PAGINATION */}
+
             <div className="mt-12 flex items-center justify-center gap-4">
               <button
                 type="button"

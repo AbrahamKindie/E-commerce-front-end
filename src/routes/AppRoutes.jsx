@@ -52,6 +52,7 @@ import ShopCategories from "../pages/Shop/ShopCategories";
 import ShopOrders from "../pages/Shop/ShopOrders";
 import ShopReviews from "../pages/Shop/ShopReviews";
 import ShopSettings from "../pages/Shop/ShopSettings";
+import ShopCategoryDetails from "../pages/Shop/ShopCategoryDetails";
 
 // ==========================================
 // SHOP PRODUCT PAGES
@@ -230,6 +231,10 @@ function AppRoutes() {
             path="categories"
             element={<ShopCategories />}
           />
+          <Route
+          path="categories/:id"
+          element={<ShopCategoryDetails />}
+           />
 
           <Route
             path="orders"

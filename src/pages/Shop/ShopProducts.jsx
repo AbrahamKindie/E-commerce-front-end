@@ -14,6 +14,51 @@ import {
 
 import productService from "../../services/productService";
 
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:3000"
+).replace(/\/+$/, "");
+
+// Resolve product image URLs.
+const getProductImageUrl = (imagePath) => {
+  if (!imagePath || typeof imagePath !== "string") {
+    return "";
+  }
+
+  // Already an absolute URL.
+  if (/^https?:\/\//i.test(imagePath)) {
+    return imagePath;
+  }
+
+  // Relative backend upload path.
+  return `${API_BASE_URL}/${imagePath.replace(/^\/+/, "")}`;
+};
+
+// Product image with fallback.
+const ProductImage = ({ product }) => {
+  const [imageError, setImageError] = useState(false);
+
+  const firstImage = product.images?.[0];
+  const imageUrl = getProductImageUrl(firstImage);
+
+  if (!imageUrl || imageError) {
+    return (
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border bg-gray-100 text-gray-400">
+        <Package size={21} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageUrl}
+      alt={product.name || "Product"}
+      loading="lazy"
+      onError={() => setImageError(true)}
+      className="h-12 w-12 shrink-0 rounded-lg border object-cover"
+    />
+  );
+};
+
 const ShopProducts = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -144,7 +189,6 @@ const ShopProducts = () => {
       {/* PAGE HEADER */}
 
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
             My Products
@@ -162,7 +206,6 @@ const ShopProducts = () => {
           <Plus size={18} />
           Add Product
         </Link>
-
       </div>
 
       {/* SUCCESS MESSAGE */}
@@ -184,7 +227,6 @@ const ShopProducts = () => {
       {/* PRODUCT STATISTICS */}
 
       <div className="grid gap-4 sm:grid-cols-2">
-
         <div className="flex items-center gap-4 rounded-xl border bg-white p-5 shadow-sm">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
             <Package size={24} />
@@ -220,13 +262,11 @@ const ShopProducts = () => {
             </p>
           </div>
         </div>
-
       </div>
 
       {/* SEARCH AND REFRESH */}
 
       <div className="flex flex-col gap-3 sm:flex-row">
-
         <div className="relative flex-1">
           <Search
             className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -254,7 +294,6 @@ const ShopProducts = () => {
           />
           Refresh
         </button>
-
       </div>
 
       {/* PRODUCT LIST */}
@@ -269,7 +308,6 @@ const ShopProducts = () => {
         </div>
       ) : products.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-white px-6 py-16 text-center">
-
           <Package
             className="mx-auto mb-3 text-gray-400"
             size={40}
@@ -296,13 +334,10 @@ const ShopProducts = () => {
               Add Your First Product
             </Link>
           )}
-
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
-
           <table className="w-full min-w-[1050px] text-left text-sm">
-
             <thead className="bg-gray-50 text-gray-600">
               <tr>
                 <th className="p-4 font-semibold">Product</th>
@@ -325,23 +360,11 @@ const ShopProducts = () => {
                     key={product.id}
                     className="border-t transition hover:bg-gray-50"
                   >
-
                     {/* PRODUCT DETAILS */}
 
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-
-                        {product.images?.[0] ? (
-                          <img
-                            src={product.images[0]}
-                            alt={product.name}
-                            className="h-12 w-12 rounded-lg border object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-gray-400">
-                            <Package size={21} />
-                          </div>
-                        )}
+                        <ProductImage product={product} />
 
                         <div className="min-w-0">
                           <p className="font-medium text-gray-900">
@@ -352,7 +375,6 @@ const ShopProducts = () => {
                             {product.description || "No description"}
                           </p>
                         </div>
-
                       </div>
                     </td>
 
@@ -396,7 +418,6 @@ const ShopProducts = () => {
 
                     <td className="p-4">
                       <div className="flex items-center justify-center gap-2">
-
                         <Link
                           to={`/shop/products/${product.id}/edit`}
                           title="Edit product"
@@ -429,19 +450,15 @@ const ShopProducts = () => {
                             <Trash2 size={17} />
                           )}
                         </button>
-
                       </div>
                     </td>
-
                   </tr>
                 );
               })}
             </tbody>
-
           </table>
         </div>
       )}
-
     </div>
   );
 };

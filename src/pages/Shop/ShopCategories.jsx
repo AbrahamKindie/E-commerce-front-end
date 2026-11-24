@@ -1,228 +1,162 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
-  FolderPlus,
-  Pencil,
-  Trash2,
-  X,
-  RefreshCw,
+  Plus,
   Search,
   Package,
-  Tags,
+  Edit,
+  Trash2,
+  Eye,
+  Loader2,
   AlertCircle,
-  CheckCircle2,
-  Plus,
+  X,
+  Save,
 } from "lucide-react";
 
 import productCategoryService from "../../services/productCategoryService";
 
-const emptyForm = {
-  name: "",
-  description: "",
+const getResponseData = (response) => {
+  let result = response?.data ?? response;
+
+  if (result?.data !== undefined) {
+    result = result.data;
+  }
+
+  return result;
 };
 
-// ==========================================
-// NORMALIZE API RESPONSE
-// ==========================================
-
-const extractCategories = (response) => {
-  const payload = response?.data;
-
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
-
-  if (Array.isArray(payload?.categories)) {
-    return payload.categories;
-  }
-
-  throw new Error("Invalid product categories response.");
-};
-
-// ==========================================
-// GET PRODUCT COUNT
-// ==========================================
-
-const getProductCount = (category) => {
-  return (
-    category._count?.products ??
-    category.products?.length ??
-    0
+const getProductCount = (category) =>
+  Number(
+    category?._count?.products ??
+      category?.products?.length ??
+      0
   );
-};
 
-// ==========================================
-// COMPONENT
-// ==========================================
+const formatDate = (date) => {
+  if (!date) return "—";
+
+  return new Date(date).toLocaleDateString("en-ET", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
 
 const ShopCategories = () => {
   const [categories, setCategories] = useState([]);
-  const [form, setForm] = useState(emptyForm);
-  const [editingId, setEditingId] = useState(null);
-
-  const [showForm, setShowForm] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-
-  const [search, setSearch] = useState("");
-
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // ==========================================
-  // FETCH MY PRODUCT CATEGORIES
-  // ==========================================
+  const [search, setSearch] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
-  const fetchCategories = useCallback(
-    async ({ showLoading = true } = {}) => {
-      try {
-        if (showLoading) {
-          setLoading(true);
-        }
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+  });
 
-        setError("");
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
 
-        const response =
-          await productCategoryService.getMyProductCategories();
+      const response =
+        await productCategoryService.getMyProductCategories();
 
-        const categoryList = extractCategories(response);
+      const data = getResponseData(response);
 
-        setCategories(categoryList);
-
-        return true;
-      } catch (err) {
-        console.error("Fetch Product Categories Error:", err);
-
-        setError(
-          err.response?.data?.message ||
-            "Could not load product categories. Please try again."
-        );
-
-        return false;
-      } finally {
-        if (showLoading) {
-          setLoading(false);
-        }
-      }
-    },
-    []
-  );
+      setCategories(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Failed to load product categories."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
 
-  // ==========================================
-  // FILTER CATEGORIES
-  // ==========================================
-
+  // Search by category name and description only.
   const filteredCategories = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+    const term = search.trim().toLowerCase();
 
-    if (!keyword) {
-      return categories;
-    }
+    if (!term) return categories;
 
     return categories.filter((category) => {
-      const name = category.name?.toLowerCase() || "";
-      const description =
-        category.description?.toLowerCase() || "";
+      const matchesName = category.name
+        ?.toLowerCase()
+        .includes(term);
 
-      return (
-        name.includes(keyword) ||
-        description.includes(keyword)
-      );
+      const matchesDescription = category.description
+        ?.toLowerCase()
+        .includes(term);
+
+      return matchesName || matchesDescription;
     });
   }, [categories, search]);
 
-  // ==========================================
-  // CATEGORY STATISTICS
-  // ==========================================
+  const openCreateModal = () => {
+    setEditingCategory(null);
 
-  const totalProducts = useMemo(() => {
-    return categories.reduce(
-      (total, category) =>
-        total + getProductCount(category),
-      0
-    );
-  }, [categories]);
-
-  // ==========================================
-  // OPEN CREATE FORM
-  // ==========================================
-
-  const openCreateForm = () => {
-    setForm(emptyForm);
-    setEditingId(null);
-    setShowForm(true);
-    setError("");
-    setSuccess("");
-  };
-
-  // ==========================================
-  // OPEN EDIT FORM
-  // ==========================================
-
-  const openEditForm = (category) => {
-    setForm({
-      name: category.name || "",
-      description: category.description || "",
+    setFormData({
+      name: "",
+      description: "",
     });
 
-    setEditingId(category.id);
-    setShowForm(true);
     setError("");
-    setSuccess("");
+    setShowModal(true);
   };
 
-  // ==========================================
-  // CLOSE FORM
-  // ==========================================
+  const openEditModal = (category) => {
+    setEditingCategory(category);
 
-  const closeForm = () => {
-    if (saving) {
-      return;
-    }
+    setFormData({
+      name: category.name ?? "",
+      description: category.description ?? "",
+    });
 
-    setShowForm(false);
-    setForm(emptyForm);
-    setEditingId(null);
     setError("");
+    setShowModal(true);
   };
 
-  // ==========================================
-  // CREATE / UPDATE CATEGORY
-  // ==========================================
+  const closeModal = () => {
+    if (saving) return;
+
+    setShowModal(false);
+    setEditingCategory(null);
+
+    setFormData({
+      name: "",
+      description: "",
+    });
+  };
+
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
+
+    setFormData((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (saving) {
-      return;
-    }
+    const name = formData.name.trim();
+    const description = formData.description.trim();
 
-    const name = form.name.trim();
-    const description = form.description.trim();
-
-    if (name.length < 2) {
-      setError("Category name must be at least 2 characters.");
-      return;
-    }
-
-    if (name.length > 40) {
-      setError("Category name cannot exceed 40 characters.");
-      return;
-    }
-
-    if (description.length > 200) {
-      setError("Description cannot exceed 200 characters.");
+    if (!name) {
+      setError("Category name is required.");
       return;
     }
 
@@ -231,141 +165,78 @@ const ShopCategories = () => {
       setError("");
       setSuccess("");
 
-      const payload = {
-        name,
-        description: description || null,
-      };
-
-      if (editingId !== null) {
+      if (editingCategory) {
         await productCategoryService.updateProductCategory(
-          editingId,
-          payload
+          editingCategory.id,
+          {
+            name,
+            description,
+          }
         );
 
-        setSuccess(
-          "Product category updated successfully."
-        );
+        setSuccess("Product category updated successfully.");
       } else {
-        await productCategoryService.createProductCategory(
-          payload
-        );
+        await productCategoryService.createProductCategory({
+          name,
+          description,
+        });
 
-        setSuccess(
-          "Product category created successfully."
-        );
+        setSuccess("Product category created successfully.");
       }
 
-      setShowForm(false);
-      setForm(emptyForm);
-      setEditingId(null);
+      setShowModal(false);
+      setEditingCategory(null);
 
-      // Refresh without displaying the initial loading screen.
-      const refreshed = await fetchCategories({
-        showLoading: false,
-      });
-
-      if (!refreshed) {
-        setError(
-          "Your changes were saved, but the category list could not be refreshed."
-        );
-      }
+      await fetchCategories();
     } catch (err) {
-      console.error("Save Product Category Error:", err);
-
       setError(
         err.response?.data?.message ||
-          "Could not save product category. Please try again."
+          "Failed to save product category."
       );
     } finally {
       setSaving(false);
     }
   };
 
-  // ==========================================
-  // OPEN DELETE CONFIRMATION
-  // ==========================================
+  const handleDelete = async (category) => {
+    const productCount = getProductCount(category);
 
-  const openDeleteConfirmation = (category) => {
-    setDeleteTarget(category);
-    setError("");
-    setSuccess("");
-  };
-
-  // ==========================================
-  // CLOSE DELETE CONFIRMATION
-  // ==========================================
-
-  const closeDeleteConfirmation = () => {
-    if (deleting) {
-      return;
-    }
-
-    setDeleteTarget(null);
-    setError("");
-  };
-
-  // ==========================================
-  // DELETE CATEGORY
-  // ==========================================
-
-  const handleDelete = async () => {
-    if (!deleteTarget || deleting) {
-      return;
-    }
-
-    // Do not allow deletion when products are assigned.
-    if (getProductCount(deleteTarget) > 0) {
+    if (productCount > 0) {
       setError(
-        "This category contains products. Reassign those products before deleting the category."
+        "This category has assigned products and cannot be deleted."
       );
       return;
     }
 
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${category.name}"?`
+    );
+
+    if (!confirmed) return;
+
     try {
-      setDeleting(true);
+      setDeletingId(category.id);
       setError("");
       setSuccess("");
 
-      await productCategoryService.deleteProductCategory(
-        deleteTarget.id
-      );
+      await productCategoryService.deleteProductCategory(category.id);
 
-      setDeleteTarget(null);
+      setSuccess("Product category deleted successfully.");
 
-      setSuccess(
-        "Product category deleted successfully."
-      );
-
-      const refreshed = await fetchCategories({
-        showLoading: false,
-      });
-
-      if (!refreshed) {
-        setError(
-          "The category was deleted, but the category list could not be refreshed."
-        );
-      }
+      await fetchCategories();
     } catch (err) {
-      console.error("Delete Product Category Error:", err);
-
       setError(
         err.response?.data?.message ||
-          "Could not delete product category. Please try again."
+          "Failed to delete product category."
       );
     } finally {
-      setDeleting(false);
+      setDeletingId(null);
     }
   };
 
-  // ==========================================
-  // RENDER
-  // ==========================================
-
   return (
-    <div className="space-y-6">
-
-      {/* PAGE HEADER */}
-
+    <div className="space-y-6 p-4 md:p-6">
+      {/* Header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
@@ -378,511 +249,335 @@ const ShopCategories = () => {
         </div>
 
         <button
-          type="button"
-          onClick={openCreateForm}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 font-medium text-white transition hover:bg-indigo-700"
+          onClick={openCreateModal}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
         >
-          <Plus size={18} />
+          <Plus className="h-4 w-4" />
           Add Category
         </button>
       </div>
 
-      {/* SUCCESS MESSAGE */}
+      {/* Feedback */}
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+
+          <span>{error}</span>
+
+          <button
+            onClick={() => setError("")}
+            className="ml-auto"
+            aria-label="Dismiss error"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {success && (
         <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-          <CheckCircle2 size={18} className="shrink-0" />
-          <span>{success}</span>
+          <Package className="h-4 w-4" />
+
+          {success}
+
+          <button
+            onClick={() => setSuccess("")}
+            className="ml-auto"
+            aria-label="Dismiss success"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 
-      {/* ERROR MESSAGE */}
-
-      {error && (
-        <div
-          role="alert"
-          className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-        >
-          <AlertCircle
-            size={18}
-            className="mt-0.5 shrink-0"
-          />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* STATISTICS */}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
-        <div className="flex items-center gap-4 rounded-xl border bg-white p-5 shadow-sm">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-            <Tags size={23} />
-          </div>
-
-          <div>
-            <p className="text-sm text-gray-500">
-              Total Categories
-            </p>
-
-            <p className="text-2xl font-bold text-gray-900">
-              {categories.length}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 rounded-xl border bg-white p-5 shadow-sm">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-            <Package size={23} />
-          </div>
-
-          <div>
-            <p className="text-sm text-gray-500">
-              Products Assigned
-            </p>
-
-            <p className="text-2xl font-bold text-gray-900">
-              {totalProducts}
-            </p>
-          </div>
-        </div>
-
-      </div>
-
-      {/* CREATE / EDIT FORM */}
-
-      {showForm && (
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-5 rounded-xl border bg-white p-5 shadow-sm"
-        >
+      {/* Summary */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-semibold text-gray-900">
-                {editingId !== null
-                  ? "Edit Product Category"
-                  : "Create Product Category"}
-              </h2>
+              <p className="text-sm font-medium text-gray-500">
+                Total Categories
+              </p>
 
-              <p className="mt-1 text-xs text-gray-500">
-                This category will belong to your shop.
+              <p className="mt-2 text-2xl font-bold text-gray-900">
+                {categories.length.toLocaleString()}
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={closeForm}
-              disabled={saving}
-              className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 disabled:opacity-50"
-              aria-label="Close form"
-            >
-              <X size={20} />
-            </button>
+            <div className="rounded-xl bg-indigo-50 p-3">
+              <Package className="h-6 w-6 text-indigo-600" />
+            </div>
           </div>
-
-          {/* CATEGORY NAME */}
-
-          <div>
-            <label
-              htmlFor="categoryName"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Category Name
-            </label>
-
-            <input
-              id="categoryName"
-              type="text"
-              value={form.name}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  name: event.target.value,
-                }))
-              }
-              minLength={2}
-              maxLength={40}
-              required
-              placeholder="e.g. Men's Clothing"
-              disabled={saving}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-gray-100"
-            />
-
-            <p className="mt-1 text-xs text-gray-400">
-              {form.name.length}/40 characters (minimum 2).
-            </p>
-          </div>
-
-          {/* DESCRIPTION */}
-
-          <div>
-            <label
-              htmlFor="categoryDescription"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Description
-            </label>
-
-            <textarea
-              id="categoryDescription"
-              value={form.description}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  description: event.target.value,
-                }))
-              }
-              maxLength={200}
-              rows={3}
-              placeholder="Describe this product category..."
-              disabled={saving}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-gray-100"
-            />
-
-            <p className="mt-1 text-xs text-gray-400">
-              {form.description.length}/200 characters.
-            </p>
-          </div>
-
-          {/* FORM ACTIONS */}
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving && (
-                <RefreshCw
-                  size={16}
-                  className="animate-spin"
-                />
-              )}
-
-              {saving
-                ? "Saving..."
-                : editingId !== null
-                  ? "Update Category"
-                  : "Create Category"}
-            </button>
-
-            <button
-              type="button"
-              onClick={closeForm}
-              disabled={saving}
-              className="rounded-lg border border-gray-300 px-5 py-2.5 font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* CATEGORY LIST HEADER */}
-
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">
-            Your Categories
-          </h2>
-
-          <p className="text-sm text-gray-500">
-            Manage the categories used by your products.
-          </p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => fetchCategories()}
-          disabled={loading}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
-        >
-          <RefreshCw
-            size={16}
-            className={loading ? "animate-spin" : ""}
-          />
-          Refresh
-        </button>
       </div>
 
-      {/* SEARCH */}
+      {/* Search */}
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
 
-      <div className="relative">
-        <Search
-          size={18}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-        />
-
-        <input
-          type="text"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search categories by name or description..."
-          className="w-full rounded-lg border border-gray-300 bg-white py-3 pl-10 pr-4 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-        />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search categories..."
+            className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+          />
+        </div>
       </div>
 
-      {/* LOADING */}
-
-      {loading ? (
-        <div className="flex justify-center rounded-xl border bg-white py-16 text-gray-500">
-          <RefreshCw
-            className="mr-2 animate-spin"
-            size={20}
-          />
-          Loading product categories...
-        </div>
-      ) : categories.length === 0 ? (
-
-        /* EMPTY STATE */
-
-        <div className="rounded-xl border border-dashed bg-white px-6 py-16 text-center">
-          <FolderPlus
-            className="mx-auto mb-3 text-gray-400"
-            size={40}
-          />
-
-          <h2 className="font-semibold text-gray-800">
-            No product categories yet
-          </h2>
-
-          <p className="mt-2 text-sm text-gray-500">
-            Create your first category to organize your shop products.
-          </p>
-
-          <button
-            type="button"
-            onClick={openCreateForm}
-            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            <Plus size={17} />
-            Create First Category
-          </button>
-        </div>
-
-      ) : filteredCategories.length === 0 ? (
-
-        /* NO SEARCH RESULTS */
-
-        <div className="rounded-xl border bg-white px-6 py-12 text-center">
-          <Search
-            className="mx-auto mb-3 text-gray-400"
-            size={32}
-          />
-
-          <h2 className="font-semibold text-gray-800">
-            No matching categories
-          </h2>
-
-          <p className="mt-2 text-sm text-gray-500">
-            Try another search term.
-          </p>
-        </div>
-
-      ) : (
-
-        /* CATEGORY LIST */
-
-        <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
-
-          <div className="hidden grid-cols-12 gap-4 border-b bg-gray-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid">
-            <div className="col-span-5">
-              Category
-            </div>
-
-            <div className="col-span-3">
-              Products
-            </div>
-
-            <div className="col-span-2">
-              Created
-            </div>
-
-            <div className="col-span-2 text-right">
-              Actions
-            </div>
-          </div>
-
-          {filteredCategories.map((category) => {
-            const productCount = getProductCount(category);
-
-            return (
-              <div
-                key={category.id}
-                className="grid grid-cols-1 gap-3 border-b p-4 last:border-0 md:grid-cols-12 md:items-center md:gap-4 md:px-5"
-              >
-                {/* CATEGORY DETAILS */}
-
-                <div className="min-w-0 md:col-span-5">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                      <Tags size={19} />
-                    </div>
-
-                    <div className="min-w-0">
-                      <h3 className="truncate font-semibold text-gray-800">
-                        {category.name}
-                      </h3>
-
-                      <p className="mt-1 truncate text-sm text-gray-500">
-                        {category.description || "No description"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* PRODUCT COUNT */}
-
-                <div className="flex items-center justify-between text-sm md:col-span-3 md:block">
-                  <span className="text-gray-500 md:hidden">
-                    Assigned products
-                  </span>
-
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 font-medium text-blue-700">
-                    <Package size={14} />
-                    {productCount} products
-                  </span>
-                </div>
-
-                {/* CREATED DATE */}
-
-                <div className="text-sm text-gray-500 md:col-span-2">
-                  <span className="md:hidden">
-                    Created:{" "}
-                  </span>
-
-                  {category.createdAt
-                    ? new Date(
-                        category.createdAt
-                      ).toLocaleDateString()
-                    : "—"}
-                </div>
-
-                {/* ACTIONS */}
-
-                <div className="flex justify-end gap-2 md:col-span-2">
-                  <button
-                    type="button"
-                    onClick={() => openEditForm(category)}
-                    title="Edit category"
-                    aria-label={`Edit ${category.name}`}
-                    className="rounded-lg p-2 text-gray-500 transition hover:bg-indigo-50 hover:text-indigo-600"
-                  >
-                    <Pencil size={17} />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openDeleteConfirmation(category)
-                    }
-                    title={
-                      productCount > 0
-                        ? "Reassign products before deleting"
-                        : "Delete category"
-                    }
-                    aria-label={`Delete ${category.name}`}
-                    disabled={productCount > 0}
-                    className="rounded-lg p-2 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
-                  >
-                    <Trash2 size={17} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* DELETE CONFIRMATION MODAL */}
-
-      {deleteTarget && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="deleteCategoryTitle"
-        >
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-
-            <div className="mb-4 flex items-start justify-between">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-red-50 text-red-600">
-                <Trash2 size={21} />
-              </div>
-
-              <button
-                type="button"
-                onClick={closeDeleteConfirmation}
-                disabled={deleting}
-                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
-                aria-label="Close confirmation"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <h2
-              id="deleteCategoryTitle"
-              className="text-lg font-bold text-gray-900"
-            >
-              Delete Product Category?
+      {/* Category Table */}
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+          <div>
+            <h2 className="font-semibold text-gray-900">
+              All Categories
             </h2>
 
-            <p className="mt-2 text-sm text-gray-600">
-              Are you sure you want to delete{" "}
-              <strong>{deleteTarget.name}</strong>?
+            <p className="mt-1 text-xs text-gray-500">
+              {filteredCategories.length} categories found
+            </p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-7 w-7 animate-spin text-indigo-600" />
+
+            <span className="ml-3 text-sm text-gray-500">
+              Loading categories...
+            </span>
+          </div>
+        ) : filteredCategories.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
+            <Package className="h-12 w-12 text-gray-300" />
+
+            <h3 className="mt-3 font-semibold text-gray-800">
+              {search ? "No matching categories" : "No categories yet"}
+            </h3>
+
+            <p className="mt-1 max-w-md text-sm text-gray-500">
+              {search
+                ? "Try another search term."
+                : "Create your first product category to organize your products."}
             </p>
 
-            {getProductCount(deleteTarget) > 0 && (
-              <div className="mt-4 flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                <AlertCircle
-                  size={18}
-                  className="mt-0.5 shrink-0"
-                />
+            {!search && (
+              <button
+                onClick={openCreateModal}
+                className="mt-5 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+              >
+                <Plus className="h-4 w-4" />
+                Create Category
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-[750px] w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Category
+                  </th>
 
-                <p>
-                  This category has assigned products. You must
-                  reassign those products to another category
-                  before deleting it.
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Assigned Products
+                  </th>
+
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Created
+                  </th>
+
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-gray-100">
+                {filteredCategories.map((category) => {
+                  const productCount = getProductCount(category);
+
+                  return (
+                    <tr key={category.id} className="hover:bg-gray-50">
+                      {/* Category */}
+                      <td className="px-5 py-4">
+                        <div>
+                          <Link
+                            to={`/shop/categories/${category.id}`}
+                            className="font-semibold text-gray-900 hover:text-indigo-600"
+                          >
+                            {category.name}
+                          </Link>
+
+                          <p className="mt-1 max-w-xs truncate text-xs text-gray-500">
+                            {category.description || "No description"}
+                          </p>
+                        </div>
+                      </td>
+
+                      {/* Assigned Product Count Only */}
+                      <td className="px-5 py-4">
+                        <span className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">
+                          <Package className="h-4 w-4" />
+
+                          {productCount.toLocaleString()}{" "}
+                          {productCount === 1 ? "Product" : "Products"}
+                        </span>
+                      </td>
+
+                      {/* Created Date */}
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-500">
+                        {formatDate(category.createdAt)}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            to={`/shop/categories/${category.id}`}
+                            title="View category details"
+                            className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Link>
+
+                          <button
+                            onClick={() => openEditModal(category)}
+                            title="Edit category"
+                            className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(category)}
+                            disabled={
+                              deletingId === category.id ||
+                              productCount > 0
+                            }
+                            title={
+                              productCount > 0
+                                ? "Remove assigned products before deleting"
+                                : "Delete category"
+                            }
+                            className="rounded-lg border border-gray-200 p-2 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {deletingId === category.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Create / Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {editingCategory ? "Edit Category" : "Create Category"}
+                </h2>
+
+                <p className="mt-1 text-xs text-gray-500">
+                  {editingCategory
+                    ? "Update your category information."
+                    : "Add a new category to your shop."}
                 </p>
               </div>
-            )}
-
-            <p className="mt-3 text-xs text-gray-500">
-              This action cannot be undone.
-            </p>
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={closeDeleteConfirmation}
-                disabled={deleting}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
 
               <button
-                type="button"
-                onClick={handleDelete}
-                disabled={
-                  deleting ||
-                  getProductCount(deleteTarget) > 0
-                }
-                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={closeModal}
+                disabled={saving}
+                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Close modal"
               >
-                {deleting && (
-                  <RefreshCw
-                    size={15}
-                    className="animate-spin"
-                  />
-                )}
-
-                {deleting
-                  ? "Deleting..."
-                  : "Delete Category"}
+                <X className="h-5 w-5" />
               </button>
             </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4 p-5">
+              <div>
+                <label
+                  htmlFor="category-name"
+                  className="mb-1.5 block text-sm font-medium text-gray-700"
+                >
+                  Category Name
+                </label>
+
+                <input
+                  id="category-name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required
+                  maxLength={100}
+                  placeholder="e.g. Men's Clothing"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="category-description"
+                  className="mb-1.5 block text-sm font-medium text-gray-700"
+                >
+                  Description
+                </label>
+
+                <textarea
+                  id="category-description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  rows={4}
+                  maxLength={1000}
+                  placeholder="Enter category description..."
+                  className="w-full resize-y rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  disabled={saving}
+                  className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+
+                  {saving
+                    ? "Saving..."
+                    : editingCategory
+                      ? "Save Changes"
+                      : "Create Category"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

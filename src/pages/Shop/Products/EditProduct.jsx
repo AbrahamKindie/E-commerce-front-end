@@ -18,6 +18,13 @@ import { API_BASE_URL } from "../../../services/api";
 const MAX_IMAGES = 10;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
+const ALLOWED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+];
+
 // ==========================================
 // RESPONSE HELPERS
 // ==========================================
@@ -45,6 +52,10 @@ const extractProduct = (response) => {
   );
 };
 
+// ==========================================
+// COMPONENT
+// ==========================================
+
 const EditProduct = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -71,7 +82,7 @@ const EditProduct = () => {
   const [error, setError] = useState("");
 
   // ==========================================
-  // LOAD PRODUCT AND SHOP PRODUCT CATEGORIES
+  // LOAD PRODUCT AND CATEGORIES
   // ==========================================
 
   useEffect(() => {
@@ -200,7 +211,10 @@ const EditProduct = () => {
 
     if (selectedFiles.length > remainingSlots) {
       setError(
-        `You can only add ${Math.max(remainingSlots, 0)} more image(s). Maximum allowed is ${MAX_IMAGES}.`
+        `You can only add ${Math.max(
+          remainingSlots,
+          0
+        )} more image(s). Maximum allowed is ${MAX_IMAGES}.`
       );
 
       e.target.value = "";
@@ -208,8 +222,8 @@ const EditProduct = () => {
     }
 
     for (const file of selectedFiles) {
-      if (!file.type.startsWith("image/")) {
-        setError("Only image files are allowed.");
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        setError("Only JPEG, PNG, WEBP, and GIF images are allowed.");
         e.target.value = "";
         return;
       }
@@ -306,6 +320,10 @@ const EditProduct = () => {
       return `A product cannot have more than ${MAX_IMAGES} images.`;
     }
 
+    if (newImages.some((file) => !(file instanceof File))) {
+      return "One or more selected images are invalid. Please select them again.";
+    }
+
     return null;
   };
 
@@ -315,6 +333,8 @@ const EditProduct = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (submitting) return;
 
     setError("");
 
@@ -336,17 +356,31 @@ const EditProduct = () => {
       formData.append("stock", form.stock);
       formData.append("productCategoryId", form.productCategoryId);
 
-      // Keep only existing images selected by the owner.
+      // Keep existing image paths separately.
+      // These are NOT uploaded files.
       formData.append(
         "retainedImages",
         JSON.stringify(retainedImages)
       );
 
-      // Add newly uploaded image files.
+      // Upload only newly selected File objects.
+      // Each file is appended exactly once.
       newImages.forEach((image) => {
         formData.append("images", image);
       });
 
+      // Diagnostic logging to verify the number of uploaded files.
+      console.log("[EDIT PRODUCT UPLOAD]", {
+        productId: id,
+        retainedImages: retainedImages.length,
+        newImages: newImages.length,
+        uploadedFileParts: formData.getAll("images").length,
+        fileNames: formData
+          .getAll("images")
+          .map((file) => file.name),
+      });
+
+      // IMPORTANT: use id from useParams(), not undefined productId.
       await productService.updateShopProduct(id, formData);
 
       navigate("/shop/products", {
@@ -401,7 +435,6 @@ const EditProduct = () => {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-10">
-
       {/* HEADER */}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -451,7 +484,6 @@ const EditProduct = () => {
       {/* PRODUCT FORM */}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-
         {/* PRODUCT INFORMATION */}
 
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
@@ -460,7 +492,6 @@ const EditProduct = () => {
           </h2>
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
             {/* NAME */}
 
             <div>
@@ -602,14 +633,12 @@ const EditProduct = () => {
                 {form.description.length}/200 characters
               </p>
             </div>
-
           </div>
         </div>
 
         {/* PRODUCT IMAGES */}
 
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
-
           <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
@@ -617,7 +646,8 @@ const EditProduct = () => {
               </h2>
 
               <p className="mt-1 text-sm text-gray-500">
-                Keep existing images, remove unwanted ones, or upload new images.
+                Keep existing images, remove unwanted ones, or upload new
+                images.
               </p>
             </div>
 
@@ -706,7 +736,6 @@ const EditProduct = () => {
 
           {totalImages < MAX_IMAGES && (
             <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-5 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50">
-
               <div className="mb-3 rounded-full bg-blue-100 p-3 text-blue-600">
                 <ImagePlus size={25} />
               </div>
@@ -716,16 +745,17 @@ const EditProduct = () => {
               </span>
 
               <span className="mt-1 text-sm text-gray-500">
-                Click to select images (maximum {MAX_IMAGES - totalImages} more)
+                Click to select images (maximum {MAX_IMAGES - totalImages}{" "}
+                more)
               </span>
 
               <span className="mt-1 text-xs text-gray-400">
-                Image files only · Maximum 5 MB per image
+                JPEG, PNG, WEBP, or GIF · Maximum 5 MB per image
               </span>
 
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif"
                 multiple
                 onChange={handleImageChange}
                 className="hidden"
@@ -743,7 +773,6 @@ const EditProduct = () => {
         {/* FORM ACTIONS */}
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-
           <Link
             to="/shop/products"
             className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-6 py-3 font-medium text-gray-700 transition hover:bg-gray-50"
@@ -768,7 +797,6 @@ const EditProduct = () => {
               </>
             )}
           </button>
-
         </div>
       </form>
     </div>

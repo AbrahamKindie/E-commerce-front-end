@@ -57,12 +57,11 @@ const CreateProduct = () => {
 
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
-
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   // ==========================================
-  // FETCH SHOP OWNER PRODUCT CATEGORIES
+  // FETCH PRODUCT CATEGORIES
   // ==========================================
 
   useEffect(() => {
@@ -83,10 +82,7 @@ const CreateProduct = () => {
           setCategoriesLoaded(true);
         }
       } catch (err) {
-        console.error(
-          "Fetch Product Categories Error:",
-          err
-        );
+        console.error("Fetch Product Categories Error:", err);
 
         if (mounted) {
           setCategories([]);
@@ -132,25 +128,12 @@ const CreateProduct = () => {
   // ==========================================
 
   const handleImageChange = (event) => {
-    const selectedFiles = Array.from(
-      event.target.files || []
-    );
+    const selectedFiles = Array.from(event.target.files || []);
 
-    // Reset the input so the same file can be selected again.
     event.target.value = "";
-
     setError("");
 
-    if (selectedFiles.length === 0) {
-      return;
-    }
-
-    if (selectedFiles.length > MAX_IMAGES) {
-      setError(
-        `You can upload a maximum of ${MAX_IMAGES} images.`
-      );
-      return;
-    }
+    if (selectedFiles.length === 0) return;
 
     const invalidImage = selectedFiles.find(
       (file) => !file.type.startsWith("image/")
@@ -170,18 +153,25 @@ const CreateProduct = () => {
       return;
     }
 
-    setImages(selectedFiles);
+    setImages((previousImages) => {
+      const combinedImages = [...previousImages, ...selectedFiles];
+
+      if (combinedImages.length > MAX_IMAGES) {
+        setError(`You can upload a maximum of ${MAX_IMAGES} images.`);
+        return previousImages;
+      }
+
+      return combinedImages;
+    });
   };
 
   // ==========================================
-  // REMOVE SELECTED IMAGE
+  // REMOVE IMAGE
   // ==========================================
 
   const removeImage = (index) => {
     setImages((previous) =>
-      previous.filter(
-        (_, imageIndex) => imageIndex !== index
-      )
+      previous.filter((_, imageIndex) => imageIndex !== index)
     );
   };
 
@@ -192,13 +182,10 @@ const CreateProduct = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (saving) {
-      return;
-    }
+    if (saving) return;
 
     setError("");
 
-    // Categories must load successfully first.
     if (!categoriesLoaded) {
       setError(
         "Product categories have not loaded. Please refresh the page and try again."
@@ -213,11 +200,9 @@ const CreateProduct = () => {
       return;
     }
 
-    // Validate category ownership against the loaded list.
     const selectedCategory = categories.find(
       (category) =>
-        String(category.id) ===
-        String(form.productCategoryId)
+        String(category.id) === String(form.productCategoryId)
     );
 
     if (!selectedCategory) {
@@ -240,20 +225,13 @@ const CreateProduct = () => {
       return;
     }
 
-    if (
-      !Number.isSafeInteger(stock) ||
-      stock < 0
-    ) {
-      setError(
-        "Stock must be a valid non-negative whole number."
-      );
+    if (!Number.isSafeInteger(stock) || stock < 0) {
+      setError("Stock must be a valid non-negative whole number.");
       return;
     }
 
     if (images.length > MAX_IMAGES) {
-      setError(
-        `You can upload a maximum of ${MAX_IMAGES} images.`
-      );
+      setError(`You can upload a maximum of ${MAX_IMAGES} images.`);
       return;
     }
 
@@ -263,10 +241,7 @@ const CreateProduct = () => {
       const formData = new FormData();
 
       formData.append("name", form.name.trim());
-      formData.append(
-        "description",
-        form.description.trim()
-      );
+      formData.append("description", form.description.trim());
       formData.append("price", String(price));
       formData.append("stock", String(stock));
 
@@ -278,6 +253,12 @@ const CreateProduct = () => {
       images.forEach((image) => {
         formData.append("images", image);
       });
+
+      console.log("[CREATE PRODUCT UPLOAD]", {
+  selectedImages: images.length,
+  uploadedFileParts: formData.getAll("images").length,
+  fileNames: formData.getAll("images").map((file) => file.name),
+});
 
       await productService.createShopProduct(formData);
 
@@ -339,10 +320,7 @@ const CreateProduct = () => {
           role="alert"
           className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
         >
-          <AlertCircle
-            size={18}
-            className="mt-0.5 shrink-0"
-          />
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
@@ -351,10 +329,7 @@ const CreateProduct = () => {
 
       {loadingCategories && (
         <div className="flex items-center gap-2 rounded-lg border bg-white p-4 text-sm text-gray-500">
-          <RefreshCw
-            size={18}
-            className="animate-spin"
-          />
+          <RefreshCw size={18} className="animate-spin" />
           Loading your product categories...
         </div>
       )}
@@ -370,8 +345,8 @@ const CreateProduct = () => {
             </h2>
 
             <p className="mt-2 text-sm text-amber-700">
-              You must create at least one product category
-              before adding products to your shop.
+              You must create at least one product category before adding
+              products to your shop.
             </p>
 
             <Link
@@ -389,7 +364,6 @@ const CreateProduct = () => {
         onSubmit={handleSubmit}
         className="space-y-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7"
       >
-
         {/* BASIC INFORMATION */}
 
         <div>
@@ -485,8 +459,7 @@ const CreateProduct = () => {
               htmlFor="productCategoryId"
               className="mb-2 block text-sm font-medium text-gray-700"
             >
-              Product Category{" "}
-              <span className="text-red-500">*</span>
+              Product Category <span className="text-red-500">*</span>
             </label>
 
             <select
@@ -514,10 +487,7 @@ const CreateProduct = () => {
               </option>
 
               {categories.map((category) => (
-                <option
-                  key={category.id}
-                  value={category.id}
-                >
+                <option key={category.id} value={category.id}>
                   {category.name}
                 </option>
               ))}
@@ -561,96 +531,87 @@ const CreateProduct = () => {
               {form.description.length}/3000 characters
             </p>
           </div>
-
         </div>
 
         {/* PRODUCT IMAGES */}
 
         <div className="border-t border-gray-100 pt-6">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Product Images
-          </h2>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Product Images
+              </h2>
 
-          <p className="mt-1 text-sm text-gray-500">
-            Upload up to 10 images. Each image must be smaller than 5 MB.
-          </p>
+              <p className="mt-1 text-sm text-gray-500">
+                Upload up to 10 images, maximum 5 MB each.
+              </p>
+            </div>
 
-          <label
-            htmlFor="images"
-            className={`mt-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center transition ${
-              saving
-                ? "cursor-not-allowed opacity-50"
-                : "cursor-pointer hover:border-indigo-400 hover:bg-indigo-50"
-            }`}
-          >
-            <Upload
-              size={32}
-              className="mb-3 text-gray-400"
-            />
-
-            <span className="font-medium text-gray-700">
-              Click to upload product images
+            <span className="shrink-0 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+              {images.length}/{MAX_IMAGES}
             </span>
+          </div>
 
-            <span className="mt-1 text-xs text-gray-500">
-              PNG, JPG, JPEG, WEBP
-            </span>
+          {/* UPLOAD BUTTON */}
 
-            <input
-              id="images"
-              type="file"
-              accept="image/*"
-              multiple
-              disabled={saving}
-              onChange={handleImageChange}
-              className="hidden"
-            />
-          </label>
+          {images.length < MAX_IMAGES && (
+            <label
+              htmlFor="images"
+              className={`mt-4 inline-flex items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700 transition ${
+                saving
+                  ? "cursor-not-allowed opacity-50"
+                  : "cursor-pointer hover:border-indigo-400 hover:bg-indigo-50"
+              }`}
+            >
+              <Upload size={18} className="text-indigo-600" />
+              Add Images
 
-          {/* SELECTED IMAGES */}
+              <input
+                id="images"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                multiple
+                disabled={saving}
+                onChange={handleImageChange}
+                className="hidden"
+              />
+            </label>
+          )}
+
+          {/* HORIZONTAL IMAGE PREVIEWS */}
 
           {images.length > 0 && (
             <div className="mt-5">
-              <p className="mb-3 text-sm font-medium text-gray-700">
-                Selected Images ({images.length}/{MAX_IMAGES})
-              </p>
-
-              <div className="space-y-2">
+              <div className="flex flex-wrap items-start gap-3">
                 {images.map((image, index) => (
                   <div
-                    key={`${image.name}-${index}`}
-                    className="flex items-center justify-between rounded-lg border border-gray-200 p-3"
+                    key={`${image.name}-${image.size}-${index}`}
+                    className="group relative h-20 w-20 shrink-0"
                   >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Package
-                        size={20}
-                        className="shrink-0 text-indigo-500"
-                      />
-
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-gray-700">
-                          {image.name}
-                        </p>
-
-                        <p className="text-xs text-gray-400">
-                          {(image.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      </div>
-                    </div>
+                    <img
+                      src={URL.createObjectURL(image)}
+                      alt={`Product preview ${index + 1}`}
+                      className="h-full w-full rounded-lg border border-gray-200 object-cover"
+                    />
 
                     <button
                       type="button"
                       onClick={() => removeImage(index)}
                       disabled={saving}
-                      className="ml-3 rounded-lg p-2 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                       title="Remove image"
-                      aria-label={`Remove ${image.name}`}
+                      aria-label={`Remove image ${index + 1}`}
+                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white shadow transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <X size={18} />
+                      <X size={14} />
                     </button>
                   </div>
                 ))}
               </div>
+
+              <p className="mt-3 text-xs text-gray-400">
+                {images.length} image(s) selected. Click the × icon to remove
+                an image.
+              </p>
             </div>
           )}
         </div>
@@ -677,10 +638,7 @@ const CreateProduct = () => {
           >
             {saving ? (
               <>
-                <RefreshCw
-                  size={17}
-                  className="animate-spin"
-                />
+                <RefreshCw size={17} className="animate-spin" />
                 Creating Product...
               </>
             ) : (
@@ -688,7 +646,6 @@ const CreateProduct = () => {
             )}
           </button>
         </div>
-
       </form>
     </div>
   );
