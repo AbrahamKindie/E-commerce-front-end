@@ -86,7 +86,7 @@ import AdminRoles from "../commponents/Admin/AdminRoles";
 // ==========================================
 
 import AdminDashboard from "../pages/Admin/AdminDashboard";
-import AdminShopCategories from "../pages/Admin/SHopCategories/AdminShopCategories";
+import AdminShopCategories from "../pages/Admin/ShopCategories/AdminShopCategories";
 import UserManagement from "../pages/Admin/UserManagement";
 import ShopsList from "../pages/Admin/Shops/ShopsList";
 import ShopDetails from "../pages/Admin/Shops/ShopDetails";
