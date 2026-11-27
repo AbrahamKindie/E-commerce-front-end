@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Tags,
   Shield,
+  Headset,
 } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
@@ -31,9 +32,6 @@ const AdminSidebar = ({ isOpen, onClose }) => {
   // EFFECTIVE ADMIN PERMISSIONS
   // ==========================================
 
-  // Permissions are calculated by the backend
-  // from the Admin's currently assigned active role.
-
   const permissions = Array.isArray(user?.adminPermissions)
     ? user.adminPermissions.filter(
         (permission) =>
@@ -48,76 +46,82 @@ const AdminSidebar = ({ isOpen, onClose }) => {
   // NAVIGATION ITEMS
   // ==========================================
 
-const navigationGroups = [
-  {
-    title: "Overview",
-    items: [
-      {
-        name: "Dashboard",
-        path: "/admin",
-        icon: LayoutDashboard,
-        visible: hasPermission("VIEW_REPORTS"),
-        end: true,
-      },
-    ],
-  },
+  const navigationGroups = [
+    {
+      title: "Overview",
+      items: [
+        {
+          name: "Dashboard",
+          path: "/admin",
+          icon: LayoutDashboard,
+          visible: hasPermission("VIEW_REPORTS"),
+          end: true,
+        },
+      ],
+    },
 
-  {
-    title: "Marketplace Management",
-    items: [
-      {
-        name: "User Management",
-        path: "/admin/users",
-        icon: Users,
-        visible:
-          hasPermission("VIEW_USERS") ||
-          hasPermission("VIEW_ADMINS"),
-      },
-      {
-        name: "Role & Permissions",
-        path: "/admin/roles",
-        icon: Shield,
-        visible: hasPermission("VIEW_ADMIN_ROLES"),
-      },
-      {
-        name: "Shop Management",
-        path: "/admin/shops",
-        icon: Store,
-        visible: hasPermission("VIEW_SHOPS"),
-      },
-      {
-        name: "Shop Categories",
-        path: "/admin/categories",
-        icon: Tags,
-        visible: hasPermission("VIEW_CATEGORIES"),
-      },
-      {
-        name: "Product Management",
-        path: "/admin/products",
-        icon: Package,
-        visible: hasPermission("VIEW_PRODUCTS"),
-      },
-      {
-        name: "Order Management",
-        path: "/admin/orders",
-        icon: ClipboardList,
-        visible: hasPermission("VIEW_ORDERS"),
-      },
-    ],
-  },
+    {
+      title: "Marketplace Management",
+      items: [
+        {
+          name: "User Management",
+          path: "/admin/users",
+          icon: Users,
+          visible:
+            hasPermission("VIEW_USERS") ||
+            hasPermission("VIEW_ADMINS"),
+        },
+        {
+          name: "Role & Permissions",
+          path: "/admin/roles",
+          icon: Shield,
+          visible: hasPermission("VIEW_ADMIN_ROLES"),
+        },
+        {
+          name: "Shop Management",
+          path: "/admin/shops",
+          icon: Store,
+          visible: hasPermission("VIEW_SHOPS"),
+        },
+        {
+          name: "Shop Categories",
+          path: "/admin/categories",
+          icon: Tags,
+          visible: hasPermission("VIEW_CATEGORIES"),
+        },
+        {
+          name: "Product Management",
+          path: "/admin/products",
+          icon: Package,
+          visible: hasPermission("VIEW_PRODUCTS"),
+        },
+        {
+          name: "Order Management",
+          path: "/admin/orders",
+          icon: ClipboardList,
+          visible: hasPermission("VIEW_ORDERS"),
+        },
+        {
+          name: "Support Management",
+          path: "/admin/support",
+          icon: Headset,
+          visible: hasPermission("VIEW_SUPPORT_TICKETS"),
+        },
+      ],
+    },
 
-  {
-    title: "Administration",
-    items: [
-      {
-        name: "Activity Logs",
-        path: "/admin/activity-logs",
-        icon: Activity,
-        visible: hasPermission("VIEW_ACTIVITY_LOGS"),
-      },
-    ],
-  },
-];
+    {
+      title: "Administration",
+      items: [
+        {
+          name: "Activity Logs",
+          path: "/admin/activity-logs",
+          icon: Activity,
+          visible: hasPermission("VIEW_ACTIVITY_LOGS"),
+        },
+      ],
+    },
+  ];
 
   // ==========================================
   // ROLE INFORMATION

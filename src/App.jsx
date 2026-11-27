@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import Navbar from "./commponents/Layout/Navbar";
 import Footer from "./commponents/Layout/Footer";
 import AppRoutes from "./routes/AppRoutes";
+import SupportWidget from "./pages/Support/SupportWidget";
 
 function App() {
   const location = useLocation();
@@ -29,6 +30,7 @@ function App() {
       <AppRoutes />
 
       {showPublicLayout && <Footer />}
+      <SupportWidget />
     </>
   );
 }

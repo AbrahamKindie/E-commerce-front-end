@@ -34,7 +34,7 @@ import { API_BASE_URL } from "../../../services/api";
 // IMAGE HELPERS
 // ==========================================
 
-const getCategoryImageUrl = (imagePath) => {
+export const getCategoryImageUrl = (imagePath) => {
   if (!imagePath) return "";
 
   if (/^https?:\/\//i.test(imagePath)) {
@@ -105,7 +105,7 @@ const getErrorMessage = (error, fallback) =>
 // MAIN COMPONENT
 // ==========================================
 
-const AdminShopCategories = () => {
+export const AdminShopCategories = () => {
   const { user } = useAuth();
 
   // ==========================================

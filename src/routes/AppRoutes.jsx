@@ -30,6 +30,19 @@ import ResetPassword from "../pages/Auth/ResetPassword";
 import AdminPasswordSetup from "../pages/Auth/AdminPasswordSetup";
 
 // ==========================================
+// SUPPORT PAGES
+// ==========================================
+
+// Public support pages
+import HelpCenter from "../pages/Support/HelpCenter";
+import FAQ from "../pages/Support/FAQ";
+import CreateSupportTicket from "../pages/Support/CreateSupportTicket";
+
+// Customer support pages
+import MySupportTickets from "../pages/Support/MySupportTickets";
+import SupportTicketDetails from "../pages/Support/SupportTicketDetails";
+
+// ==========================================
 // ROUTE GUARDS
 // ==========================================
 
@@ -66,13 +79,14 @@ import EditProduct from "../pages/Shop/Products/EditProduct";
 // ==========================================
 
 import AdminLayout from "../commponents/Admin/AdminLayout";
+import AdminRoles from "../commponents/Admin/AdminRoles";
 
 // ==========================================
 // ADMIN PAGES
 // ==========================================
 
 import AdminDashboard from "../pages/Admin/AdminDashboard";
-import AdminShopCategories from "../pages/Admin/ShopCategories/AdminShopCategories";
+import AdminShopCategories from "../pages/Admin/SHopCategories/AdminShopCategories";
 import UserManagement from "../pages/Admin/UserManagement";
 import ShopsList from "../pages/Admin/Shops/ShopsList";
 import ShopDetails from "../pages/Admin/Shops/ShopDetails";
@@ -81,7 +95,13 @@ import ActivityLogDetails from "../pages/Admin/ActivityLogs/ActivityLogDetails";
 import AdminProducts from "../pages/Admin/Products/AdminProducts";
 import AdminProductDetails from "../pages/Admin/Products/AdminProductDetail";
 import AdminOrders from "../pages/Admin/Orders/AdminOrders";
-import AdminRoles from "../commponents/Admin/AdminRoles";
+
+// ==========================================
+// ADMIN SUPPORT PAGES
+// ==========================================
+
+import AdminSupportTickets from "../pages/Admin/Support/AdminSupportTickets";
+import AdminSupportTicketDetails from "../pages/Admin/Support/AdminSupportTicketDetails";
 
 // ==========================================
 // ADMIN ROLE GUARD
@@ -148,11 +168,62 @@ function AppRoutes() {
       <Route path="/cart" element={<Carts />} />
 
       {/* ================================== */}
+      {/* PUBLIC SUPPORT ROUTES */}
+      {/* ================================== */}
+
+      {/* Help Center */}
+      <Route
+        path="/help-center"
+        element={<HelpCenter />}
+      />
+
+      {/* Frequently Asked Questions */}
+      <Route
+        path="/faq"
+        element={<FAQ />}
+      />
+
+      {/* All public contact pages redirect to Help Center */}
+      <Route
+        path="/contact"
+        element={<Navigate to="/help-center" replace />}
+      />
+
+      <Route
+        path="/contact-support"
+        element={<Navigate to="/help-center" replace />}
+      />
+
+      <Route
+        path="/support"
+        element={<Navigate to="/help-center" replace />}
+      />
+
+      {/* Public ticket creation: guests and authenticated customers */}
+      <Route
+        path="/support/new"
+        element={<CreateSupportTicket />}
+      />
+
+      {/* Guest ticket conversation */}
+      <Route
+        path="/support/ticket/:id"
+        element={<SupportTicketDetails />}
+      />
+
+      {/* ================================== */}
       {/* AUTHENTICATION ROUTES */}
       {/* ================================== */}
 
-      <Route path="/register" element={<Register />} />
-      <Route path="/login" element={<Login />} />
+      <Route
+        path="/register"
+        element={<Register />}
+      />
+
+      <Route
+        path="/login"
+        element={<Login />}
+      />
 
       <Route
         path="/forgot-password"
@@ -174,25 +245,62 @@ function AppRoutes() {
       />
 
       {/* ================================== */}
-      {/* AUTHENTICATED ACCOUNT ROUTES */}
+      {/* AUTHENTICATED CUSTOMER ROUTES */}
       {/* ================================== */}
 
       <Route element={<ProtectedRoute />}>
-        <Route path="/my-account" element={<MyAccount />} />
-        <Route path="/checkout" element={<Checkout />} />
+        <Route
+          path="/my-account"
+          element={<MyAccount />}
+        />
+
+        <Route
+          path="/checkout"
+          element={<Checkout />}
+        />
 
         <Route
           path="/order-confirmation/:id"
           element={<OrderConfirmation />}
         />
 
-        <Route path="/my-orders" element={<MyOrders />} />
-        <Route path="/orders" element={<MyOrders />} />
-        <Route path="/wishlist" element={<Wishlist />} />
+        <Route
+          path="/my-orders"
+          element={<MyOrders />}
+        />
+
+        <Route
+          path="/orders"
+          element={<MyOrders />}
+        />
+
+        <Route
+          path="/wishlist"
+          element={<Wishlist />}
+        />
 
         <Route
           path="/my-reports"
           element={<MyProductReports />}
+        />
+
+        {/* CUSTOMER SUPPORT TICKET HISTORY */}
+
+        <Route
+          path="/my-account/support"
+          element={<MySupportTickets />}
+        />
+
+        {/* Redirect old create-ticket URL to public creation page */}
+        <Route
+          path="/my-account/support/new"
+          element={<Navigate to="/support/new" replace />}
+        />
+
+        {/* Authenticated customer ticket details */}
+        <Route
+          path="/my-account/support/:id"
+          element={<SupportTicketDetails />}
         />
       </Route>
 
@@ -201,7 +309,10 @@ function AppRoutes() {
       {/* ================================== */}
 
       <Route element={<ShopOwnerRoute />}>
-        <Route path="/shop" element={<ShopLayout />}>
+        <Route
+          path="/shop"
+          element={<ShopLayout />}
+        >
           <Route
             index
             element={<Navigate to="/shop/dashboard" replace />}
@@ -231,10 +342,11 @@ function AppRoutes() {
             path="categories"
             element={<ShopCategories />}
           />
+
           <Route
-          path="categories/:id"
-          element={<ShopCategoryDetails />}
-           />
+            path="categories/:id"
+            element={<ShopCategoryDetails />}
+          />
 
           <Route
             path="orders"
@@ -259,7 +371,10 @@ function AppRoutes() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AdminRoleRoute />}>
-          <Route path="/admin" element={<AdminLayout />}>
+          <Route
+            path="/admin"
+            element={<AdminLayout />}
+          >
             {/* ADMIN DASHBOARD */}
 
             <Route
@@ -320,8 +435,6 @@ function AppRoutes() {
             </Route>
 
             {/* SHOP CATEGORY MANAGEMENT */}
-            {/* No VIEW_CATEGORIES permission.
-                Access is based on management permissions. */}
 
             <Route
               element={
@@ -371,6 +484,26 @@ function AppRoutes() {
               />
             </Route>
 
+            {/* SUPPORT TICKET MANAGEMENT */}
+
+            <Route
+              element={
+                <AdminPermissionRoute
+                  permission="VIEW_SHOP_CUSTOMER_TICKETS"
+                />
+              }
+            >
+              <Route
+                path="support"
+                element={<AdminSupportTickets />}
+              />
+
+              <Route
+                path="support/:id"
+                element={<AdminSupportTicketDetails />}
+              />
+            </Route>
+
             {/* ACTIVITY LOGS */}
 
             <Route
@@ -391,6 +524,15 @@ function AppRoutes() {
           </Route>
         </Route>
       </Route>
+
+      {/* ================================== */}
+      {/* FALLBACK ROUTE */}
+      {/* ================================== */}
+
+      <Route
+        path="*"
+        element={<Navigate to="/" replace />}
+      />
     </Routes>
   );
 }
